@@ -66,7 +66,12 @@ public class Maestro {
     }
     
     public boolean isRunning() {
-        return isRunning;
+        for (char c : tentativa) {
+            if (c == '_') {
+                return true; // Ainda há letras faltando
+            }
+        }
+        return false; // Todas as letras foram adivinhadas
     }
 
     public String getPalavraSelecionada() {
