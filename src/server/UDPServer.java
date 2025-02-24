@@ -8,15 +8,18 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Arrays;
+import java.util.Collections;
 
 import forca.Maestro;
 
 public class UDPServer {
 
 	//define o número máximo de jogadores
-    private static final int MAX_PLAYERS = 4;
+    private static final int MAX_PLAYERS = 2;
     private static final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
     private static Map<String, Integer> players = new HashMap<>(); // chave: "IP:Porta", Valor: Porta
+    private static Map<String, Boolean> playerReadyStatus = new HashMap<>();
+    private static Map<String, Integer> playerLives = new HashMap<>(); // Chave: "IP:Porta", Valor: Vidas
     private static Maestro game = new Maestro();
     private static int currentPlayerIndex = 0;
     private static boolean gameStarted = false;
@@ -55,6 +58,8 @@ public class UDPServer {
                 System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
                         + "Processando mensagem JOIN...");
                 handleJoin(remoteAddress, remotePort, serverSocket);
+            } else if (message.startsWith("READY")) {
+                handleReady(message, remoteAddress, remotePort, serverSocket);
             } else if (message.startsWith("GUESS")) {
                 System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
                         + "Processando mensagem GUESS...");
@@ -68,10 +73,8 @@ public class UDPServer {
 
     //função para lidar com a entrada de jogadores
     private static void handleJoin(InetAddress remoteAddress, int remotePort, DatagramSocket serverSocket) throws Exception {
-        // cria uma chave única combinando o endereço IP e a porta pra diferenciar cada jogador, no caso de estar na mesma rede "localhost"
         String playerKey = remoteAddress.getHostAddress() + ":" + remotePort;
 
-        // verifica se o jogador já está registrado
         if (!players.containsKey(playerKey)) {
             if (players.size() >= MAX_PLAYERS) {
                 String fullMessage = "Jogo cheio. Tente novamente mais tarde.";
@@ -83,69 +86,159 @@ public class UDPServer {
                 return;
             }
 
-            //caso não esteja, adiciona o jogador
             players.put(playerKey, remotePort);
-            System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
-                    + "Novo jogador conectado: " + remoteAddress.getHostAddress() + ":" + remotePort);
+            playerReadyStatus.put(playerKey, false); // Inicialmente, o jogador não está pronto
+            playerLives.put(playerKey, 5); // Cada jogador começa com 5 vidas
 
-            // envia uma mensagem de boas-vindas ao jogador
-            String welcomeMessage = "Bem-vindo ao jogo! Aguardando outros jogadores...";
+            String welcomeMessage = "Bem-vindo ao jogo! Digite 'READY' para confirmar que está pronto. Você tem 5 vidas.";
             byte[] sendData = welcomeMessage.getBytes();
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, remoteAddress, remotePort);
             serverSocket.send(sendPacket);
             System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
-                    + "Mensagem de boas-vindas enviada para " + remoteAddress.getHostAddress() + ":" + remotePort);
+                    + "Novo jogador conectado: " + remoteAddress.getHostAddress() + ":" + remotePort);
+        }
+    }
 
-            // verifica se todos os jogadores estão conectados e inicia o game
-            if (players.size() == MAX_PLAYERS && !gameStarted) {
-                gameStarted = true;
-                broadcast("Todos os jogadores conectados. O jogo vai começar!", serverSocket);
+    private static void handleReady(String message, InetAddress remoteAddress, int remotePort, DatagramSocket serverSocket) throws Exception {
+        String playerKey = remoteAddress.getHostAddress() + ":" + remotePort;
+
+        if (message.equalsIgnoreCase("READY")) {
+            playerReadyStatus.put(playerKey, true);
+            String ackMessage = "Você está pronto! Aguardando outros jogadores...";
+            byte[] sendData = ackMessage.getBytes();
+            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, remoteAddress, remotePort);
+            serverSocket.send(sendPacket);
+            System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
+                    + "Jogador " + playerKey + " confirmou que está pronto.");
+            
+            // Envia uma mensagem para todos os jogadores informando quantos já estão prontos
+            int readyPlayers = (int) playerReadyStatus.values().stream().filter(status -> status).count();
+            String waitMessage = "Aguardando outros jogadores... (" + readyPlayers + "/" + MAX_PLAYERS + " prontos)";
+            broadcast(waitMessage, serverSocket);
+
+            // Verifica se todos os jogadores estão prontos
+            if (playerReadyStatus.size() == MAX_PLAYERS && playerReadyStatus.values().stream().allMatch(status -> status)) {
+                broadcast("Todos os jogadores estão prontos. O jogo vai começar!", serverSocket);
+                String hiddenWord = String.join(" ", Collections.nCopies(game.getPalavraSelecionada().length(), "_"));
+                broadcast("O jogo começou! A palavra é: " + hiddenWord, serverSocket);
                 startGame(serverSocket);
+            }
+        } else {
+            String errorMessage = "Comando inválido. Digite 'READY' para confirmar que está pronto.";
+            byte[] sendData = errorMessage.getBytes();
+            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, remoteAddress, remotePort);
+            serverSocket.send(sendPacket);
+        }
+    }
+    
+    
+    //função para tratar o palpite do jogador da vez
+    private static void handleGuess(String message, InetAddress remoteAddress, int remotePort, DatagramSocket serverSocket) throws Exception {
+        String playerKey = remoteAddress.getHostAddress() + ":" + remotePort;
+
+        // Verifica se o jogador ainda está no jogo
+        if (!players.containsKey(playerKey) || !playerLives.containsKey(playerKey)) {
+            String errorMessage = "Você não está mais no jogo. Aguarde o próximo jogo.";
+            byte[] sendData = errorMessage.getBytes();
+            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, remoteAddress, remotePort);
+            serverSocket.send(sendPacket);
+            System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
+                    + "Jogador " + playerKey + " tentou jogar, mas foi eliminado.");
+            return;
+        }
+
+        if (message.startsWith("GUESS")) {
+            // Verifica se o palpite é válido
+            if (message.split(" ").length < 2) {
+                String errorMessage = "Palpite inválido. Use o formato 'GUESS <letra>'.";
+                byte[] sendData = errorMessage.getBytes();
+                DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, remoteAddress, remotePort);
+                serverSocket.send(sendPacket);
+                System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
+                        + "Jogador " + playerKey + " enviou um palpite inválido.");
+                return;
+            }
+
+            char guess = message.split(" ")[1].charAt(0);
+            boolean correctGuess = game.adivinharLetra(guess);
+
+            // Atualiza as vidas do jogador se ele errar
+            if (!correctGuess) {
+                playerLives.put(playerKey, playerLives.get(playerKey) - 1);
+            }
+
+            String response = "Jogador " + playerKey + " tentou a letra " + guess + ". ";
+            response += correctGuess ? "Acertou!" : "Errou!";
+            response += " Estado atual: " + Arrays.toString(game.getTentativa());
+            response += " Vidas restantes: " + playerLives.get(playerKey);
+
+            broadcast(response, serverSocket);
+            System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
+                    + "Resposta enviada para todos os jogadores: " + response);
+
+            // Verifica se a palavra foi completamente adivinhada
+            if (game.isRunning()) {
+                // Verifica se o jogador perdeu todas as vidas
+                if (playerLives.get(playerKey) <= 0) {
+                    String eliminationMessage = "Jogador " + playerKey + " perdeu todas as vidas e foi eliminado!";
+                    broadcast(eliminationMessage, serverSocket);
+                    System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
+                            + "Jogador " + playerKey + " foi eliminado.");
+
+                    // Remove o jogador do jogo
+                    players.remove(playerKey);
+                    playerLives.remove(playerKey);
+
+                    // Verifica se ainda há jogadores no jogo
+                    if (players.isEmpty()) {
+                        String endMessage = "Todos os jogadores foram eliminados! A palavra era: " + game.getPalavraSelecionada();
+                        broadcast(endMessage, serverSocket);
+                        System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
+                                + "Todos os jogadores foram eliminados. Mensagem enviada para todos os jogadores: " + endMessage);
+
+                        // Reinicia o jogo
+                        reiniciarJogo(serverSocket);
+                        return;
+                    }
+                }
+
+                // Passa a vez para o próximo jogador
+                passarVez(serverSocket);
+            } else {
+                // A palavra foi completamente adivinhada
+                String winMessage = "Jogador " + playerKey + " completou a palavra! A palavra era: " + game.getPalavraSelecionada();
+                broadcast(winMessage, serverSocket);
+                System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
+                        + "Jogador " + playerKey + " venceu o jogo!");
+
+                // Reinicia o jogo
+                reiniciarJogo(serverSocket);
             }
         }
     }
 
-    
-    //função para tratar o palpite do jogador da vez
-    private static void handleGuess(String message, InetAddress remoteAddress, int remotePort, DatagramSocket serverSocket) throws Exception {
-        char guess = message.split(" ")[1].charAt(0);
-        boolean correctGuess = game.adivinharLetra(guess);
-
-        String response = "Jogador " + remoteAddress.getHostAddress() + ":" + remotePort + " tentou a letra " + guess + ". ";
-        response += correctGuess ? "Acertou!" : "Errou!";
-        response += " Estado atual: " + Arrays.toString(game.getTentativa());
-
-        broadcast(response, serverSocket);
+    private static void passarVez(DatagramSocket serverSocket) throws Exception {
+        currentPlayerIndex = (currentPlayerIndex + 1) % players.size();
+        String nextPlayerKey = (String) players.keySet().toArray()[currentPlayerIndex];
+        int nextPort = players.get(nextPlayerKey);
+        InetAddress nextPlayerAddress = InetAddress.getByName(nextPlayerKey.split(":")[0]);
+        String turnMessage = "SUA VEZ";
+        byte[] sendData = turnMessage.getBytes();
+        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, nextPlayerAddress, nextPort);
+        serverSocket.send(sendPacket);
         System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
-                + "Resposta enviada para todos os jogadores: " + response);
-        
-        
-        //checa se já tem um jogo rodando
-        if (game.isRunning()) {
-            currentPlayerIndex = (currentPlayerIndex + 1) % players.size();
-            String nextPlayerKey = (String) players.keySet().toArray()[currentPlayerIndex];
-            int nextPort = players.get(nextPlayerKey);
-            InetAddress nextPlayerAddress = InetAddress.getByName(nextPlayerKey.split(":")[0]);
-            String turnMessage = "SUA VEZ";
-            byte[] sendData = turnMessage.getBytes();
-            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, nextPlayerAddress, nextPort);
-            serverSocket.send(sendPacket);
-            System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
-                    + "Vez passada para " + nextPlayerKey);
-        } else {
-        	//lida com o fim do jogo e inicia um novo
-            String endMessage = "Jogo terminado. A palavra era: " + game.getPalavraSelecionada();
-            broadcast(endMessage, serverSocket);
-            System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
-                    + "Jogo terminado. Mensagem enviada para todos os jogadores: " + endMessage);
-
-            game.gerarJogo();
-            broadcast("Novo jogo iniciado! Aguarde sua vez.", serverSocket);
-            System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
-                    + "Novo jogo iniciado. Mensagem enviada para todos os jogadores.");
-        }
+                + "Vez passada para " + nextPlayerKey);
     }
-
+    
+    private static void reiniciarJogo(DatagramSocket serverSocket) throws Exception {
+        game.gerarJogo(); // Gera uma nova palavra
+        players.clear(); // Limpa a lista de jogadores
+        playerReadyStatus.clear(); // Reseta o status de prontidão
+        playerLives.clear(); // Limpa as vidas dos jogadores
+        broadcast("Novo jogo iniciado! Aguarde sua vez.", serverSocket);
+        System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
+                + "Novo jogo iniciado. Mensagem enviada para todos os jogadores.");
+    }
     
     //função para iniciar o jogo uma vez que todos os jogadores estão conectados
     private static void startGame(DatagramSocket serverSocket) throws Exception {
