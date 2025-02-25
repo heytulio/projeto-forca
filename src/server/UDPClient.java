@@ -25,6 +25,8 @@ public class UDPClient {
         byte[] sendData = joinMessage.getBytes();
         DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
         clientSocket.send(sendPacket);
+        
+        boolean ready = false;
 
         // loop pra receber mensagens do servidor
         while (true) {
@@ -40,19 +42,45 @@ public class UDPClient {
                 System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
                         + "FROM SERVER: " + serverMessage);
 
-                // verifica a vez do jogador
-                if (serverMessage.startsWith("SUA VEZ")) {
-                    System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
-                            + "Digite uma letra para adivinhar:");
+                // verifica coisas que o jogador tem que realizar
+                if (serverMessage.contains("READY") && !ready) {
+                    System.out.println("Digite 'READY' para confirmar que está pronto:");
+                    String readyInput = keyboardReader.readLine();
+                    if (readyInput.equalsIgnoreCase("READY")) {
+                        sendMessage("READY", clientSocket, serverAddress, serverPort);
+                        ready = true;
+                    }
+                } else if (serverMessage.startsWith("SUA VEZ")) {
+                    System.out.println("[" + dtf.format(LocalDateTime.now()) + "] Digite uma letra para adivinhar:");
                     String guess = keyboardReader.readLine();
-
-                    // envia um palpite (GUESS)
-                    String guessMessage = "GUESS " + guess;
-                    sendData = guessMessage.getBytes();
-                    sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
-                    clientSocket.send(sendPacket);
+                    sendMessage("GUESS " + guess, clientSocket, serverAddress, serverPort);
+                }	else if (serverMessage.contains("Se deseja jogar novamente")) {
+                    
+                    System.out.println("Digite 'RESTART' se deseja reiniciar o jogo:");
+                    String restartInput = keyboardReader.readLine();
+                    if (restartInput.equalsIgnoreCase("RESTART")) {
+                        sendMessage("RESTART", clientSocket, serverAddress, serverPort);
+                    }
+                }else if (serverMessage.contains("Iniciando novo jogo")) {
+                    // Recebe a mensagem de reinício do servidor
+                    System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
+                            + "O jogo foi reiniciado. Prepare-se para começar novamente!");
+                    ready = false;  
+                    System.out.println("Digite 'READY' para confirmar que está pronto:");
+                    String readyInput = keyboardReader.readLine();
+                    if (readyInput.equalsIgnoreCase("READY")) {
+                        sendMessage("READY", clientSocket, serverAddress, serverPort);
+                        ready = true;
+                    }
+                }
+            }
             
             } 
-        }
+        
+    
+    private static void sendMessage(String message, DatagramSocket socket, InetAddress address, int port) throws Exception {
+        byte[] sendData = message.getBytes();
+        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, address, port);
+        socket.send(sendPacket);
     }
 }
