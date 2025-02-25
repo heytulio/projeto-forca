@@ -5,91 +5,92 @@ import java.util.*;
 
 public class Maestro {
 
-    private static List<String> palavras = new ArrayList<>();
-    private String palavraSelecionada;
-    private char[] tentativa;
-    private int vidas;
-    private boolean isRunning;
-    private Set<Character> letrasTentadas = new HashSet<>();
+	private static List<String> palavras = new ArrayList<>();
+	private String palavraSelecionada;
+	private char[] tentativa;
+	private int vidas;
+	private boolean isRunning;
+	private Set<Character> letrasTentadas = new HashSet<>();
 
-    public void adicionarPalavra(String... palavras) {
-        for (String s : palavras) {
-            Maestro.palavras.add(normalizarTexto(s.toLowerCase()));
-        }
-    }
+	public void adicionarPalavra(String... palavras) {
+		for (String s : palavras) {
+			Maestro.palavras.add(normalizarTexto(s.toLowerCase()));
+		}
+	}
 
-    public void gerarJogo() {
-        if (Maestro.palavras.isEmpty()) {
-            System.out.println("Sem palavras para iniciar o jogo");
-            return;
-        }
+	public void gerarJogo() {
+		if (Maestro.palavras.isEmpty()) {
+			System.out.println("Sem palavras para iniciar o jogo");
+			return;
+		}
 
-        palavraSelecionada = Maestro.palavras.get(new Random().nextInt(Maestro.palavras.size()));
-        tentativa = new char[palavraSelecionada.length()];
-        vidas = 5;
-        isRunning = true;
-        letrasTentadas.clear();
+		palavraSelecionada = Maestro.palavras.get(new Random().nextInt(Maestro.palavras.size()));
+		tentativa = new char[palavraSelecionada.length()];
+		vidas = 5;
+		isRunning = true;
+		letrasTentadas.clear();
 
-        Arrays.fill(tentativa, '_');
-    }
+		Arrays.fill(tentativa, '_');
+	}
 
-    public boolean adivinharLetra(char letra) {
-        letra = Character.toLowerCase(letra);
+	public boolean adivinharLetra(char letra) {
+		letra = Character.toLowerCase(letra);
 
-        if (letrasTentadas.contains(letra)) {
-            return false;
-        }
+		if (letrasTentadas.contains(letra)) {
+			return false;
+		}
 
-        letrasTentadas.add(letra);
-        boolean acertou = false;
+		letrasTentadas.add(letra);
+		boolean acertou = false;
 
-        for (int i = 0; i < palavraSelecionada.length(); i++) {
-            if (letra == palavraSelecionada.charAt(i)) {
-                tentativa[i] = letra;
-                acertou = true;
-            }
-        }
+		for (int i = 0; i < palavraSelecionada.length(); i++) {
+			if (letra == palavraSelecionada.charAt(i)) {
+				tentativa[i] = letra;
+				acertou = true;
+			}
+		}
 
-        if (!acertou) {
-            vidas--;
-        }
+		if (!acertou) {
+			vidas--;
+		}
 
-        if (vidas == 0 || verificaSeCompleto()) {
-            isRunning = false;
-        }
+		if (vidas == 0 || verificaSeCompleto()) {
+			isRunning = false;
+		}
 
-        return acertou;
-    }
+		return acertou;
+	}
 
-    public boolean adivinharPalavra(String palavra) {
-        return palavra.equalsIgnoreCase(palavraSelecionada);
-    }
-    
-    public boolean isRunning() {
-        for (char c : tentativa) {
-            if (c == '_') {
-                return true; // Ainda há letras faltando
-            }
-        }
-        return false; // Todas as letras foram adivinhadas
-    }
+	public boolean adivinharPalavra(String palavra) {
+		return palavra.equalsIgnoreCase(palavraSelecionada);
+	}
 
-    public String getPalavraSelecionada() {
-        return palavraSelecionada;
-    }
+	public boolean isRunning() {
+		for (char c : tentativa) {
+			if (c == '_') {
+				return true; // Ainda há letras faltando
+			}
+		}
+		return false; // Todas as letras foram adivinhadas
+	}
 
-    public char[] getTentativa() {
-        return tentativa;
-    }
+	public String getPalavraSelecionada() {
+		return palavraSelecionada;
+	}
 
-    private boolean verificaSeCompleto() {
-        for (char c : tentativa) {
-            if (c == '_') return false;
-        }
-        return true;
-    }
+	public char[] getTentativa() {
+		return tentativa;
+	}
 
-    private String normalizarTexto(String texto) {
-        return Normalizer.normalize(texto, Normalizer.Form.NFD).replaceAll("[^\\p{ASCII}]", "");
-    }
+	private boolean verificaSeCompleto() {
+		for (char c : tentativa) {
+			if (c == '_')
+				return false;
+		}
+		return true;
+	}
+
+	private String normalizarTexto(String texto) {
+		return Normalizer.normalize(texto, Normalizer.Form.NFD).replaceAll("[^\\p{ASCII}]", "");
+	}
 }

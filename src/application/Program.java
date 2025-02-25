@@ -10,9 +10,9 @@ public class Program {
         
         forca.adicionarPalavra("mochila", "criança", "diabo", "rede", "pá", "fone", "LUZ", "Medo");
 
-        System.out.println("Bem-vindo ao jogo da Forca!");
-        System.out.println("Tente adivinhar a palavra uma letra por vez.");
-        System.out.println("Você tem 5 vidas. Boa sorte!\n");
+        System.out.println("\nBem-vindo ao jogo da Forca!");
+        System.out.println("\nTente adivinhar a palavra uma letra por vez.");
+        System.out.println("\nVocê tem 5 vidas. Boa sorte!\n");
 
         boolean jogarNovamente;
         
@@ -42,3 +42,5 @@ public class Program {
         input.close();
     }
 }
+
+//deu certo aqui

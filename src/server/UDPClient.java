@@ -10,56 +10,89 @@ import java.time.format.DateTimeFormatter;
 
 public class UDPClient {
 
-    public static void main(String args[]) throws Exception {
-        final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
-        BufferedReader keyboardReader = new BufferedReader(new InputStreamReader(System.in));
-        try (DatagramSocket clientSocket = new DatagramSocket()) {
+	public static void main(String args[]) throws Exception {
+		final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+		BufferedReader keyboardReader = new BufferedReader(new InputStreamReader(System.in));
+		try (DatagramSocket clientSocket = new DatagramSocket()) {
 			InetAddress serverAddress = InetAddress.getByName("localhost");
 			int serverPort = 9876;
 
-			System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
-			        + "Conectando ao servidor...");
+			System.out.println("[" + dtf.format(LocalDateTime.now()) + "] Conectando ao servidor...");
 
-			// envia uma mensagem de registro (JOIN) para o servidor, poderia ser um prompt caso não queiramos que o jogador ja entre diretamente
+			String jogadorId = "Jogador 1";
+
 			String joinMessage = "JOIN";
 			byte[] sendData = joinMessage.getBytes();
 			DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
 			clientSocket.send(sendPacket);
 
-			// loop pra receber mensagens do servidor
 			while (true) {
-			    
-			        byte[] receiveData = new byte[1024];
-			        DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+				byte[] receiveData = new byte[1024];
+				DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+				clientSocket.receive(receivePacket);
 
-			        // recebe a resposta do server
-			        clientSocket.receive(receivePacket);
+				String serverMessage = new String(receivePacket.getData(), 0, receivePacket.getLength());
+				System.out.println(
+						"\n[" + dtf.format(LocalDateTime.now()) + "] " + jogadorId + " FROM SERVER: " + serverMessage);
 
-			        // processa a msg recebida
-			        String serverMessage = new String(receivePacket.getData(), 0, receivePacket.getLength());
-			        System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
-			                + "FROM SERVER: " + serverMessage);
+				if (serverMessage.contains("Digite 'READY' para confirmar que está pronto.")) {
+					boolean isReady = false;
+					while (!isReady) {
+						System.out.println("\n[" + dtf.format(LocalDateTime.now()) + "] " + jogadorId
+								+ "\nDigite 'READY' para confirmar que está pronto:");
+						String readyMessage = keyboardReader.readLine().toUpperCase();
 
-			        if (serverMessage.contains("Digite 'READY' para confirmar que está pronto.")) {
-			            System.out.println("[" + dtf.format(LocalDateTime.now()) + "] Digite 'READY' para confirmar que está pronto:");
-			            String readyMessage = keyboardReader.readLine();
+						if (readyMessage.equalsIgnoreCase("READY")) {
+							sendData = readyMessage.getBytes();
+							sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+							clientSocket.send(sendPacket);
+							isReady = true;
+						} else {
+							System.out.println("\n[" + dtf.format(LocalDateTime.now()) + "] " + jogadorId
+									+ " Erro: digite 'READY' corretamente.");
+						}
+					}
+				}
 
-			            if (readyMessage.equalsIgnoreCase("READY")) {
-			                sendData = readyMessage.getBytes();
-			                sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
-			                clientSocket.send(sendPacket);
-			            }
-			        }else if (serverMessage.startsWith("SUA VEZ")) {
-			            // Lógica para o palpite do jogador
-			            System.out.println("[" + dtf.format(LocalDateTime.now()) + "] Digite uma letra para adivinhar:");
-			            String guess = keyboardReader.readLine();
+				else if (serverMessage.startsWith("SUA VEZ")) {
+					System.out.println("\n[" + dtf.format(LocalDateTime.now()) + "] " + jogadorId
+							+ "\nDigite uma letra para adivinhar:");
+					String guess = keyboardReader.readLine().trim();
+					System.out.print("\n");
 
-			            String guessMessage = "GUESS " + guess;
-			            sendData = guessMessage.getBytes();
-			            sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
-			            clientSocket.send(sendPacket);
-			        }
-			    }
+
+					String guessMessage = "GUESS " + guess;
+					sendData = guessMessage.getBytes();
+					sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+					clientSocket.send(sendPacket);
+				}
+
+				else if (serverMessage.contains("Deseja jogar novamente? (s/n)")) {
+					String jogarNovamente;
+					while (true) {
+						System.out.print("\nDigite 's' para jogar novamente ou 'n' para sair: ");
+						jogarNovamente = keyboardReader.readLine().trim().toLowerCase();
+
+						if (jogarNovamente.equals("s") || jogarNovamente.equals("n")) {
+							break;
+						} else {
+							System.out.println("⚠ Resposta inválida! Digite apenas 's' ou 'n'.");
+						}
+					}
+
+					sendData = jogarNovamente.getBytes();
+					sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+					clientSocket.send(sendPacket);
+					
+					if (jogarNovamente.equals("n")) {
+						System.out.println("\nObrigado por jogar! 👋");
+						break;
+					}
+				}
+			}
 		}
-    }
+	}
 }
+
+
+//super certo
