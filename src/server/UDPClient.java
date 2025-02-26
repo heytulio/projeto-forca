@@ -82,5 +82,6 @@ public class UDPClient {
         byte[] sendData = message.getBytes();
         DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, address, port);
         socket.send(sendPacket);
+
     }
 }
