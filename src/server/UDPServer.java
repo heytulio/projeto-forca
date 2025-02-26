@@ -18,7 +18,7 @@ public class UDPServer {
 	//define o número máximo de jogadores
     private static final int MAX_PLAYERS = 4;
     private static final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
-    private static Map<String, Integer> players = new HashMap<>(); // chave: "IP:Porta", Valor: Porta
+    private static Map<String, Integer> players = new HashMap<>(); // chave: "ip:porta", valor: porta
     private static Map<String, Boolean> playersReady = new HashMap<>();
     private static Map<String, Boolean> playersRestart = new HashMap<>();
     private static Maestro game = new Maestro();
@@ -31,12 +31,12 @@ public class UDPServer {
         System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
                 + "UDP server rodando na porta " + serverPort);
 
-//        game.adicionarPalavra("mochila", "criança", "diabo", "rede", "pá", "fone", "LUZ", "Medo",
-//                "noite", "sombrio", "caverna", "mistério", "relâmpago", "abismo", "sombra", "escuridão",
-//                "vento", "sussurro", "neblina", "suspense", "ciclo", "gótico", "perdição", "sepulcro",
-//                "miragem", "eco", "corvo", "labirinto", "enigma", "pavor", "fantasma", "lua", "tormenta",
-//                "pesadelo", "oculto", "bruma", "tenebroso", "crepúsculo", "assombração", "horizonte");
-        game.adicionarPalavra("medo");
+        game.adicionarPalavra("mochila", "criança", "diabo", "rede", "pá", "fone", "LUZ", "Medo",
+                "noite", "sombrio", "caverna", "mistério", "relâmpago", "abismo", "sombra", "escuridão",
+                "vento", "sussurro", "neblina", "suspense", "ciclo", "gótico", "perdição", "sepulcro",
+                "miragem", "eco", "corvo", "labirinto", "enigma", "pavor", "fantasma", "lua", "tormenta",
+                "pesadelo", "oculto", "bruma", "tenebroso", "crepúsculo", "assombração", "horizonte");
+        
         game.gerarJogo();
 
         byte[] receivedData = new byte[1024];
@@ -50,7 +50,7 @@ public class UDPServer {
                     + "Aguardando mensagem do cliente...");
             serverSocket.receive(receivePacket);
 
-            // pega o endereço e a porta do cliente
+            //pega o endereço e a porta do cliente
             InetAddress remoteAddress = receivePacket.getAddress();
             int remotePort = receivePacket.getPort();
 
@@ -59,7 +59,7 @@ public class UDPServer {
             System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
                     + "Mensagem recebida de " + remoteAddress.getHostAddress() + ":" + remotePort + ": " + message);
 
-            // processa a mensagem, logs para depuração e confirmação de conexão do cliente
+            //processa a mensagem, logs para depuração e confirmação de conexão do cliente
             if (message.startsWith("JOIN")) {
                 System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
                         + "Processando mensagem JOIN...");
@@ -86,10 +86,10 @@ public class UDPServer {
 
     //função para lidar com a entrada de jogadores
     private static void handleJoin(InetAddress remoteAddress, int remotePort, DatagramSocket serverSocket) throws Exception {
-        // cria uma chave única combinando o endereço IP e a porta pra diferenciar cada jogador, no caso de estar na mesma rede "localhost"
+        // cria uma chave unica combinando o endereço ip e a porta pra diferenciar cada jogador, no caso de estar na mesma rede "localhost"
         String playerKey = remoteAddress.getHostAddress() + ":" + remotePort;
 
-        // verifica se o jogador já está registrado
+        // verifica se o jogador já tá registrado
         if (!players.containsKey(playerKey)) {
             if (players.size() >= MAX_PLAYERS) {
                 String fullMessage = "Jogo cheio. Tente novamente mais tarde.";
@@ -161,12 +161,35 @@ public class UDPServer {
 
         String response = "Jogador " + remoteAddress.getHostAddress() + ":" + remotePort + " tentou a letra " + guess + ". ";
         response += correctGuess ? "Acertou!" : "Errou!";
+        response += " Vidas restantes: " + game.getVidas(); 
         response += " Estado atual: " + Arrays.toString(game.getTentativa());
 
         broadcast(response, serverSocket);
         System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
                 + "Resposta enviada para todos os jogadores: " + response);
         
+     //verifica se a palavra foi completamente adivinhada
+        if (game.verificaSeCompleto()) {
+            String winnerMessage = "Jogador " + remoteAddress.getHostAddress() + ":" + remotePort + " completou a palavra e ganhou o jogo! Parabéns!";
+            broadcast(winnerMessage, serverSocket);
+            System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
+                    + "Mensagem de vitória enviada para todos os jogadores: " + winnerMessage);
+
+            //da fim no jogo
+            gameStarted = false;
+            broadcast("Jogo terminado. A palavra era: " + game.getPalavraSelecionada(), serverSocket);
+            broadcast("Se deseja jogar novamente, envie 'RESTART'.", serverSocket);
+            playersRestart.clear();
+            return; //sai do metodo, pois o jogo terminou
+        }
+        
+        if (game.getVidas() == 0) {
+            String endMessage = "Jogo terminado. Vocês perderam! A palavra era: " + game.getPalavraSelecionada();
+            broadcast(endMessage, serverSocket);
+            broadcast("Se deseja jogar novamente, envie 'RESTART'.", serverSocket);
+            playersRestart.clear();
+            return; // sai do metodo, pois o jogo terminou
+        }
         
         //checa se já tem um jogo rodando
         if (game.isRunning()) {
