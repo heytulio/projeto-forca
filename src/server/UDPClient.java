@@ -76,12 +76,18 @@ public class UDPClient {
                     System.out.println("[" + dtf.format(LocalDateTime.now()) + "] "
                             + "O jogo foi reiniciado. Prepare-se para começar novamente!");
                     ready = false;  
-                    System.out.println("Digite 'READY' para confirmar que está pronto:");
-                    String readyInput = keyboardReader.readLine();
-                    if (readyInput.equalsIgnoreCase("READY")) {
-                        sendMessage("READY", clientSocket, serverAddress, serverPort);
-                        ready = true;
+                    while(true) {
+                    	System.out.println("Digite 'READY' para confirmar que está pronto:");
+                        String readyInput = keyboardReader.readLine();
+                        if (readyInput.equalsIgnoreCase("READY")) {
+                            sendMessage("READY", clientSocket, serverAddress, serverPort);
+                            ready = true;
+                            break;
+                        } else {
+                        	System.out.println("Entrada inválida. Por favor, digite 'READY' para confirmar.");
+                        }
                     }
+                    
                 }
             }
             
