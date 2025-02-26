@@ -61,10 +61,6 @@ public class Maestro {
         return acertou;
     }
 
-    public boolean adivinharPalavra(String palavra) {
-        return palavra.equalsIgnoreCase(palavraSelecionada);
-    }
-    
     public boolean isRunning() {
         for (char c : tentativa) {
             if (c == '_') {
