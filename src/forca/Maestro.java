@@ -26,7 +26,7 @@ public class Maestro {
 
         palavraSelecionada = Maestro.palavras.get(new Random().nextInt(Maestro.palavras.size()));
         tentativa = new char[palavraSelecionada.length()];
-        vidas = 5;
+        vidas = 1;
         isRunning = true;
         letrasTentadas.clear();
 
@@ -91,5 +91,12 @@ public class Maestro {
 
     private String normalizarTexto(String texto) {
         return Normalizer.normalize(texto, Normalizer.Form.NFD).replaceAll("[^\\p{ASCII}]", "");
+    }
+    
+    private boolean adivinharPalavra(String palavra) {
+    	if(palavra.equals(palavraSelecionada)) {
+    		return true;
+    	}
+    	return false;
     }
 }
